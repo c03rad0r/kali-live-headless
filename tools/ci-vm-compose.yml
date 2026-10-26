@@ -1,0 +1,101 @@
+# ngit-ci coordinator against a host container-daemon socket (no dind).
+#
+#   DOCKER_GROUP_ID=$(stat -c %g /var/run/docker.sock) \
+#   NGIT_CI_REPOS=npub1.../ngit \
+#     docker compose -f docker-compose.host-socket.yml up --build
+#
+# Use this instead of the default docker-compose.yml (dind sidecar) where
+# privileged containers are unavailable or unwanted — e.g. inside an
+# unprivileged Proxmox LXC container, or on hosts that already run a
+# suitable daemon. The trade-off is the shape of the risk, not strictly
+# more or less of it:
+#
+#   - default dind: the dind sidecar is privileged (its escape would be
+#     host root), but job containers can never see or control the host's
+#     daemon and leave no state on it.
+#   - host socket (this file): nothing is privileged, but the mounted
+#     socket makes the coordinator container root-equivalent on a rootful
+#     Docker host, and CI job containers run as siblings on your host
+#     daemon. Job containers still get no daemon socket themselves (the
+#     coordinator's default --act-container-daemon-socket "-").
+#
+# Middle ground: point DOCKER_SOCKET at a rootless Podman socket
+# (typically /run/user/<uid>/podman/podman.sock, served by
+# `podman system service` or its systemd socket unit). Nothing is
+# privileged and the socket is not root-equivalent; set DOCKER_GROUP_ID
+# to the gid owning that socket so the container user can open it.
+
+services:
+  coordinator:
+    build: .
+    restart: unless-stopped
+    environment:
+      # Required: comma-separated repos to watch (npub or npub/identifier).
+      NGIT_CI_REPOS: "${NGIT_CI_REPOS:?set NGIT_CI_REPOS to the repos to watch}"
+      # Index relays for repo-announcement discovery (kind 30617).
+      NGIT_CI_INDEX_RELAYS: "${NGIT_CI_INDEX_RELAYS:-wss://index.ngit.dev}"
+      # Optional coordinator inbox relays; empty disables Nostr secret intake.
+      NGIT_CI_NOSTR_SECRET_RELAYS: "${NGIT_CI_NOSTR_SECRET_RELAYS:-}"
+      # Default-safe execution waits for an accepted kind-9843 Service Request.
+      NGIT_CI_EXECUTION_POLICY: "${NGIT_CI_EXECUTION_POLICY:-request-required}"
+      NGIT_CI_ADDITIONAL_REQUESTERS: "${NGIT_CI_ADDITIONAL_REQUESTERS:-}"
+      # act talks to the daemon socket mounted below.
+      NGIT_CI_DOCKER_HOST: "unix:///var/run/docker.sock"
+      # Act-only recipe: no credential-separated discovery worker is wired here.
+      # Native enablement (including the legacy alias) is intentionally disabled.
+      # Use docker-compose.native.yml alone for native Nix; mixed Compose is unsupported.
+      NGIT_CI_NIX_WORKFLOWS: "false"
+      # The host daemon cannot resolve paths inside the coordinator container.
+      # Let act copy the checkout through the Docker API instead.
+      NGIT_CI_ACT_BIND_WORKSPACE: "${NGIT_CI_ACT_BIND_WORKSPACE:-false}"
+      # actions/cache-compatible build cache. Storage stays on the
+      # coordinator-data volume and is partitioned by repo and author trust.
+      NGIT_CI_ACT_CACHE_ENABLED: "${NGIT_CI_ACT_CACHE_ENABLED:-true}"
+      NGIT_CI_ACT_CACHE_MAX_BYTES: "${NGIT_CI_ACT_CACHE_MAX_BYTES:-10737418240}"
+      # Coordinator-dictated per-job container resource caps (enforced by
+      # the host daemon; see "Job container resource limits" in
+      # docs/configuration.md).
+      # The host resource ceiling is max-concurrent-jobs × these caps.
+      NGIT_CI_ACT_CONTAINER_OPTIONS: "${NGIT_CI_ACT_CONTAINER_OPTIONS:---memory=4g --memory-swap=4g --cpus=2 --cpu-shares=128 --pids-limit=2048 --oom-score-adj=500}"
+      NGIT_CI_MAX_CONCURRENT_JOBS: "${NGIT_CI_MAX_CONCURRENT_JOBS:-1}"
+      NGIT_CI_QUEUE_RECOVERY_WINDOW_SECS: "${NGIT_CI_QUEUE_RECOVERY_WINDOW_SECS:-600}"
+      NGIT_CI_BLOSSOM_SERVERS: "${NGIT_CI_BLOSSOM_SERVERS:-}"
+      NGIT_CI_BLOSSOM_MAX_LOG_BYTES: "${NGIT_CI_BLOSSOM_MAX_LOG_BYTES:-4194304}"
+      NGIT_CI_BLOSSOM_MAX_ARTIFACT_BYTES: "${NGIT_CI_BLOSSOM_MAX_ARTIFACT_BYTES:-67108864}"
+      NGIT_CI_BLOSSOM_MAX_ARTIFACTS_PER_JOB: "${NGIT_CI_BLOSSOM_MAX_ARTIFACTS_PER_JOB:-100000}"
+      NGIT_CI_BLOSSOM_UPLOAD_TIMEOUT_SECS: "${NGIT_CI_BLOSSOM_UPLOAD_TIMEOUT_SECS:-60}"
+      NGIT_CI_BLOSSOM_UPLOAD_BUDGET_SECS: "${NGIT_CI_BLOSSOM_UPLOAD_BUDGET_SECS:-120}"
+      NGIT_CI_BLOSSOM_ARTIFACT_SERVER_ADDR: "${NGIT_CI_BLOSSOM_ARTIFACT_SERVER_ADDR:-}"
+      NGIT_CI_BLOSSOM_PUBLIC_URL: "${NGIT_CI_BLOSSOM_PUBLIC_URL:-}"
+      NGIT_CI_LOG_LEVEL: "${NGIT_CI_LOG_LEVEL:-info}"
+      NGIT_CI_EVENT_CACHE_DIR: "/data/event-cache"
+      NGIT_CI_QUEUE_STATE_PATH: "/data/queued-jobs.json"
+    # Default job timeout (30m) + Blossom post-run budget (2m) + shutdown
+    # overhead. Keep this above custom timeout/budget values.
+    stop_grace_period: "${NGIT_CI_STOP_GRACE_PERIOD:-33m}"
+    # Per-repo secrets: expose `${{ secrets.NAME }}` to jobs of the repo
+    # carrying `#ALIAS` in NGIT_CI_REPOS. Put `NGIT_CI_SECRET_<ALIAS>__<NAME>=value`
+    # lines in this git-ignored file — no per-secret names baked into this
+    # compose file. See docs/configuration.md#per-repo-secrets. An optional
+    # `NGIT_CI_OPERATOR_BUNKER=nbunksec1...` line here (never `bunker://`)
+    # enables the operator
+    # fallback for bunker-sealed values; see
+    # docs/configuration.md#bunker-sealed-secret-values.
+    env_file:
+      - path: ./ngit-ci-secrets.env
+        required: false
+    # The container user (uid 1000) must be allowed to open the mounted
+    # socket: pass the gid that owns it on the host.
+    #   DOCKER_GROUP_ID=$(stat -c %g /var/run/docker.sock)
+    group_add:
+      - "${DOCKER_GROUP_ID:?set DOCKER_GROUP_ID to the gid owning the daemon socket, e.g. from stat -c %g on it}"
+    volumes:
+      # Coordinator identity key, Nostr event cache, processed-event-ids and
+      # queued-job state, and work dir.
+      - coordinator-data:/data
+      # Host Docker-compatible daemon socket. Override DOCKER_SOCKET for
+      # rootless Podman, e.g. DOCKER_SOCKET=/run/user/1000/podman/podman.sock.
+      - "${DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock"
+
+volumes:
+  coordinator-data:
