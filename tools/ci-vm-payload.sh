@@ -45,6 +45,7 @@ echo "[ci-payload] docker daemon: $(sudo docker version --format '{{.Server.Vers
 
 # --- coordinator from the prebuilt image ------------------------------------
 sudo docker load < ngit-ci-image.tar.gz
+# --- bring it up (as root: the install dir and env live under /root) --------
 sudo mkdir -p /root/ngit-ci
 sudo cp ci-vm-compose.yml /root/ngit-ci/docker-compose.host-socket.yml
 sudo cp ci-vm.env /root/ngit-ci/ci-vm.env && sudo chmod 600 /root/ngit-ci/ci-vm.env
@@ -57,18 +58,21 @@ if [ -r ngit-ci-secrets.env ]; then
     echo "[ci-payload] per-repo secrets file installed (never printed)"
 fi
 
-# --- bring it up -------------------------------------------------------------
-cd /root/ngit-ci
-set -a; . ./ci-vm.env; set +a
-DOCKER_GROUP_ID="$(stat -c %g /var/run/docker.sock)"
-export DOCKER_GROUP_ID
-sudo -E docker compose -p ngit-ci -f docker-compose.host-socket.yml up -d --no-build
+# --- bring it up (root: the install dir + env live under /root, mode 600) ----
+sudo bash -e -c '
+    cd /root/ngit-ci
+    set -a; . ./ci-vm.env; set +a
+    DOCKER_GROUP_ID="$(stat -c %g /var/run/docker.sock)"
+    export DOCKER_GROUP_ID
+    docker compose -p ngit-ci -f docker-compose.host-socket.yml up -d --no-build
+'
 sleep 5
 
 # --- warm the job image so the first run is not a 3-minute pull -------------
-if [ "${CI_PRESEED_IMAGES:-ghcr.io/catthehacker/ubuntu:act-latest}" != none ]; then
+preseed="${CI_PRESEED_IMAGES:-ghcr.io/catthehacker/ubuntu:act-latest}"
+if [ "$preseed" != none ]; then
     echo "[ci-payload] pre-pulling job image (first boot only) ..."
-    sudo docker pull -q "${CI_PRESEED_IMAGES}" >/dev/null \
+    sudo docker pull -q "$preseed" >/dev/null \
         || echo "[ci-payload] WARNING: pre-pull failed; first job pays the pull cost"
 fi
 

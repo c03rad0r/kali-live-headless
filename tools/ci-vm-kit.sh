@@ -118,22 +118,22 @@ install_ci() {
         [ -r \"\$state\" ] || { echo 'no state file \$state — deploy first' >&2; exit 1; }
         . \"\$state\"
         echo \"VM at \${GUEST_IP:-unknown}\"
-        ssh -i /root/.ssh/klh-vm-host -o BatchMode=yes -o StrictHostKeyChecking=no \
+        sudo -n ssh -i /var/lib/kali-live-headless/vmhost-ed25519 -o BatchMode=yes -o StrictHostKeyChecking=no \
             -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 \
             \"\${GUEST_USER:-debian}@\$(sed -n 's/^GUEST_IP=//p' \$state)\" \
             'mkdir -p /tmp/ci && chmod 700 /tmp/ci'
-        scp -q -i /root/.ssh/klh-vm-host -o BatchMode=yes -o StrictHostKeyChecking=no \
+        sudo -n scp -q -i /var/lib/kali-live-headless/vmhost-ed25519 -o BatchMode=yes -o StrictHostKeyChecking=no \
             -o UserKnownHostsFile=/dev/null \
             $remote_dir/ngit-ci-image.tar.gz $remote_dir/ci-vm-payload.sh \
             $remote_dir/ci-vm-compose.yml $remote_dir/$(basename "$env") \
             \"\${GUEST_USER:-debian}@\$(sed -n 's/^GUEST_IP=//p' \$state):/tmp/ci/\"
-        [ -f $remote_dir/ngit-ci-secrets.env ] && scp -q -i /root/.ssh/klh-vm-host \
+        [ -f $remote_dir/ngit-ci-secrets.env ] && sudo -n scp -q -i /var/lib/kali-live-headless/vmhost-ed25519 \
             -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
             $remote_dir/ngit-ci-secrets.env \"\${GUEST_USER:-debian}@\$(sed -n 's/^GUEST_IP=//p' \$state):/tmp/ci/\"
-        ssh -i /root/.ssh/klh-vm-host -o BatchMode=yes -o StrictHostKeyChecking=no \
+        sudo -n ssh -i /var/lib/kali-live-headless/vmhost-ed25519 -o BatchMode=yes -o StrictHostKeyChecking=no \
             -o UserKnownHostsFile=/dev/null \
             \"\${GUEST_USER:-debian}@\$(sed -n 's/^GUEST_IP=//p' \$state)\" \
-            'cd /tmp/ci && mv $(basename "$env") ci-vm.env && chmod 600 ci-vm.env && bash ci-vm-payload.sh'
+            'cd /tmp/ci && { [ -f ci-vm.env ] || mv $(basename "$env") ci-vm.env; } && chmod 600 ci-vm.env && bash ci-vm-payload.sh'
         rm -rf $remote_dir"
 }
 
@@ -145,7 +145,7 @@ verify() {
         [ -r \"\$state\" ] || { echo 'no state file' >&2; exit 1; }
         ip=\$(sed -n 's/^GUEST_IP=//p' \$state)
         echo '== coordinator (inside the VM):'
-        ssh -i /root/.ssh/klh-vm-host -o BatchMode=yes -o StrictHostKeyChecking=no \
+        sudo -n ssh -i /var/lib/kali-live-headless/vmhost-ed25519 -o BatchMode=yes -o StrictHostKeyChecking=no \
             -o UserKnownHostsFile=/dev/null \${GUEST_USER:-debian}@\$ip \
             'sudo docker logs ngit-ci-coordinator-1 2>&1 | grep -E \"identity|Watching|Connected|baseline\" | tail -5
              echo \"egress: \$(curl -sS -m 8 https://ifconfig.me 2>/dev/null || echo unknown)\"

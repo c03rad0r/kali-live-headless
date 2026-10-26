@@ -55,6 +55,7 @@ NAME="" CORES="" RAM_GB="" DISK_GB="" GUEST_USER=debian PORT=""
 STICK="kali@kali-live.local" HUB="root@inr2.cashu.exchange"
 NO_HUB=false NO_EGRESS=false RESTORE=false ADOPT=false VERIFY_ONLY=false WAIT=300 STATE=""
 NO_CHECK=false FIPS=false
+FIPS_PEERS=()
 KEYS=()
 
 pass() { PASSED=$((PASSED + 1)); printf '  PASS  %s\n' "$1"; }
@@ -270,7 +271,7 @@ fi
 # Modular on purpose: the identity (salt+uuid -> nsec/npub) and the wire
 # (daemon in the guest) are separable, exactly like the host's mesh. Without
 # --fips-peer the guest holds an identity and no wire — a valid state.
-if $FIPS || [ ${#FIPS_PEERS[@]:-0} -gt 0 ]; then
+if $FIPS || [ "${#FIPS_PEERS[@]}" -gt 0 ]; then
     step "fips: per-VM mesh identity (kali-live-vm-fips)"
     fargs="install --id $NAME"
     [ -n "$GUEST_USER" ] && fargs="$fargs"          # daemon runs as root in the guest
