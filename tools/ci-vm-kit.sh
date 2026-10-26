@@ -115,11 +115,11 @@ install_ci() {
     [ -r "$env" ] || die "env file not readable: $env"
     local remote_dir=/tmp/ci-kit-$$
     echo "== pushing bundle to the stick"
-    scp -q "${SSHO[@]}" "$dir/ngit-ci-image.tar.gz" "$dir/ci-vm-payload.sh" \
-        "$dir/ci-vm-compose.yml" "$env" "$stick:$remote_dir/" 2>/dev/null \
+    local files=(ngit-ci-image.tar.gz ci-vm-payload.sh ci-vm-compose.yml "$(basename "$env")")
+    [ -r "$dir/act-job-image.tar.gz" ] && files+=(act-job-image.tar.gz)
+    scp -q "${SSHO[@]}" "${files[@]}" "$stick:$remote_dir/" 2>/dev/null \
         || { ssh "${SSHO[@]}" "$stick" "mkdir -p $remote_dir"; \
-             scp -q "${SSHO[@]}" "$dir/ngit-ci-image.tar.gz" "$dir/ci-vm-payload.sh" \
-                "$dir/ci-vm-compose.yml" "$env" "$stick:$remote_dir/"; }
+             scp -q "${SSHO[@]}" "${files[@]}" "$stick:$remote_dir/"; }
     [ -r "$dir/ngit-ci-secrets.env" ] \
         && scp -q "${SSHO[@]}" "$dir/ngit-ci-secrets.env" "$stick:$remote_dir/" || true
     echo "== installing inside the VM (via the stick; a few minutes)"

@@ -147,14 +147,24 @@ enabled) and driving the kit against it. Proven, with logs:
 | repo deployer provisions the CI VM inside the live guest | **PROVEN** | deploy green on core checks (13/19 postflight PASS; fails were hub-absence artifacts) |
 | docker-ce + coordinator running INSIDE the CI VM | **PROVEN** | identity npub1kx95g5… logged, watching the demo repo |
 | store persistence across a live reboot | **PROVEN** (by accident) | live reboot mid-rehearsal: ci.* artifacts intact, `--restore` path exercised |
-| act job completing INSIDE the nested VM | **not proven** | blocked by the rehearsal host (see below), not by design |
+| act job completing INSIDE the nested VM | **PROVEN** (2026-10-26 ai-legion pass) | commit 6456d302: conclusion `success`, 2.1 s, dual-attested on relay.ngit.dev (`fdab25ca` nested + `c72474d7` x280) |
 
-The one open row: the act job inside the nested VM never completed **on the
-x280 lab**, which has 15 GB RAM total — the live guest (4.2G) + CI VM (2G) +
-a 546 MB image streaming through guest RAM hit the wall repeatedly. The
-target machines have 4–8× that headroom (the runbook's budget table is sized
-for them). Everything the missing row needs is proven in the layers below it
-(act ran on the live boot directly; the coordinator ran inside the VM).
+The one open row closed on the second rehearsal host (ai-legion, 20c/31G,
+7.8G free after other lanes' services): the same stack with the bundle-
+carried job image completed the triggered act job inside the nested VM in
+**2.1 s** (vs the 15G x280 lab, which had hit its RAM ceiling — that box
+was the blocker, never the design). Two more lessons from that pass:
+
+8. **QEMU 8.2 (Ubuntu) hangs the live guest at boot without an explicit
+   `-vga std`** — the no-video BIOS/option-ROM hang class (AGENTS #22),
+   resurfacing on raw QEMU where `-display none` alone did not keep a
+   usable video device on that build. Symptom: 0-byte serial, no DHCP,
+   ~5% vCPU. Always pass `-vga std` with `-display none`.
+9. **Drive the stack through a ProxyJump alias when the runner host's key
+   isn't the baked one** — the live guest only authorizes the build-time
+   key, so a lab on another host drives it via
+   `ProxyJump <lab-host>` in ~/.ssh/config rather than key surgery on the
+   guest.
 
 ### Lessons baked into the kit by the rehearsal
 
