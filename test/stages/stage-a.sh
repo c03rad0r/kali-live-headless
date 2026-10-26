@@ -811,6 +811,21 @@ PROBE
     && record pass "hostname derive: site-local/link-local self-answer is not a duplicate" \
     || record fail "hostname derive: site-local self-answer" "got '$out' (avahi publishes fec0::/fe80:: too)"
 
+  cat > "$SCRATCH/probe-lo.sh" <<'PROBE'
+#!/bin/sh
+case "$1" in
+  latitude-7490-4c16r128d) echo 127.0.0.1 ;;
+  *) exit 1 ;;
+esac
+PROBE
+  chmod +x "$SCRATCH/probe-lo.sh"
+  out=$(PATH="$SCRATCH/fakebin:$PATH" KLH_PROBE_CMD="$SCRATCH/probe-lo.sh" \
+        KLH_DMI_DIR="$HW2/dmi" KLH_SYSBLOCK="$HW2/sys/block" KLH_MEMINFO="$HW/meminfo" \
+        KLH_NPROC=4 "$HWD" 2>/dev/null)
+  [ "$out" = "latitude-7490-4c16r128d" ] \
+    && record pass "hostname derive: loopback self-answer (avahi publishes 127.0.0.1) is not a duplicate" \
+    || record fail "hostname derive: loopback self-answer" "got '$out' (avahi registers 127.0.0.1 for our own name)"
+
   cat > "$SCRATCH/probe-foreign.sh" <<'PROBE'
 #!/bin/sh
 case "$1" in

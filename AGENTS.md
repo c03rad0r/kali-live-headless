@@ -347,6 +347,9 @@ drift is absorbed by bumping the pin, nothing else.
    (no route in 30 s or no mDNS resolver = no disambiguation; simultaneous
    first boots are re-probed twice after avahi's collision resolution, but
    a LAN that never answers mDNS can still leave both on the base name).
+   avahi registers our own name with 127.0.0.1/::1, fe80:: and site-local
+   fec0:: too, so the duplicate probe must count EVERY own address including
+   loopback — filtering lo or non-global scopes made every boot suffix `-2`.
    Test hooks `KLH_DMI_DIR`/`KLH_SYSBLOCK`/`KLH_MEMINFO`/`KLH_NPROC`/
    `KLH_PROBE_CMD`/`KLH_OWN_ADDRS` exist for fixture-based unit tests.
 

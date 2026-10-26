@@ -195,12 +195,15 @@ own_addrs() {
         printf '%s\n' "$KLH_OWN_ADDRS" | sed 's/%.*//'
         return 0
     fi
-    # ALL scopes, not just `scope global`: avahi also publishes link-local
-    # (fe80::) and deprecated site-local (fec0:: — QEMU user-net's IPv6
-    # subnet) addresses for our own name. A scope filter omitted those, so
-    # the first self-answer looked like a duplicate and EVERY boot gained
-    # '-2' (found live on hotpatch #32). Loopback is still excluded.
-    ip -o addr show 2>/dev/null | awk '$2 != "lo" {print $4}' | cut -d/ -f1 | sed 's/%.*//'
+    # EVERY local address, all scopes, LOOPBACK INCLUDED: avahi publishes
+    # our own name with 127.0.0.1/::1 and with link-local (fe80::) and
+    # deprecated site-local (fec0:: — QEMU user-net's IPv6 subnet) address
+    # records. Excluding lo or non-global scopes made those self-answers look
+    # like a duplicate, so every boot gained '-2' (found live on hotpatch #32:
+    # avahi registers 127.0.0.1 first, and the settle probe runs while the
+    # eth0 registrations are still landing). A remote machine can never answer
+    # with our loopback, so including lo cannot mask a real duplicate.
+    ip -o addr show 2>/dev/null | awk '{print $4}' | cut -d/ -f1 | sed 's/%.*//'
 }
 
 conflict() { # $1=name -> rc 0 when someone ELSE answers for it

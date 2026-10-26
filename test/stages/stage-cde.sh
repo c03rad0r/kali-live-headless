@@ -170,25 +170,42 @@ else
       # TLS. timesyncd must be active; sync must have happened (QEMU's
       # NAT reaches the pools). Give it a bounded extra window — sync can
       # land seconds after settle on a slow boot.
-      v=$(guest 'systemctl is-active systemd-timesyncd.service 2>/dev/null')
-      [ "$v" = "active" ] \
-        && record pass "$mode: timesyncd active" \
-        || record fail "$mode: timesyncd active" "got '$v' — wrong-clock sticks break apt/TLS (the sqv class)"
-      local _synch=no _n=0
-      while [ "$_synch" != yes ] && [ "$_n" -lt 10 ]; do
-        _synch=$(guest 'timedatectl show -p NTPSynchronized --value 2>/dev/null' || echo no)
-        [ "$_synch" = yes ] && break
-        _n=$((_n + 1)); sleep 3
-      done
-      [ "$_synch" = yes ] \
-        && record pass "$mode: clock synchronized (NTP)" \
-        || record fail "$mode: clock synchronized (NTP)" "not synced after settle+30s — apt/TLS at risk"
+      if [ "${HOTPATCH_IMAGE:-false}" = true ]; then
+        record skip "$mode: timesyncd active" "hotpatched image — package + enablement are build-time, outside hotpatch scope"
+        record skip "$mode: clock synchronized (NTP)" "hotpatched image — same build-time dependency"
+      else
+        v=$(guest 'systemctl is-active systemd-timesyncd.service 2>/dev/null')
+        [ "$v" = "active" ] \
+          && record pass "$mode: timesyncd active" \
+          || record fail "$mode: timesyncd active" "got '$v' — wrong-clock sticks break apt/TLS (the sqv class)"
+        local _synch=no _n=0
+        while [ "$_synch" != yes ] && [ "$_n" -lt 10 ]; do
+          _synch=$(guest 'timedatectl show -p NTPSynchronized --value 2>/dev/null' || echo no)
+          [ "$_synch" = yes ] && break
+          _n=$((_n + 1)); sleep 3
+        done
+        [ "$_synch" = yes ] \
+          && record pass "$mode: clock synchronized (NTP)" \
+          || record fail "$mode: clock synchronized (NTP)" "not synced after settle+30s — apt/TLS at risk"
+      fi
 
       # hostname: HOSTNAME_SCHEME=hardware names each machine after itself
       # (<model>-<cores>c<ram>r<disk>d). The guest's own helper is the source
       # of truth — the QEMU/DMI strings vary by QEMU version, so computing the
       # expectation here beats hardcoding. A LAN duplicate may append -2..-9.
       # (KLHCONFIG HOSTNAME= is the override stage's assertion, not this one.)
+      # The settle oneshot can still be inside its mDNS re-probe window when
+      # SSH first answers. Reading the name before it finishes captures the
+      # provision name and races the marker it writes (hotpatch #33: name
+      # read as base, marker already '-2'). Wait for the unit first.
+      _svc=no
+      if [ "${HOSTNAME_SCHEME_EXPECTED:-static}" = hardware ]; then
+        for _hi in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
+          _svc=$(guest 'systemctl show -p ActiveState,Result --value kali-live-hostname-settle 2>/dev/null | paste -sd/')
+          [ "$_svc" = "active/success" ] && break
+          sleep 2
+        done
+      fi
       v=$(guest hostname)
       if [ "${HOSTNAME_SCHEME_EXPECTED:-static}" = hardware ]; then
         hw_name=$(guest '/usr/local/sbin/kali-live-hostname-derive --no-probe 2>/dev/null')
@@ -201,6 +218,15 @@ else
             *)
               record fail "$mode: hardware hostname" "want '$hw_name' (or -N), got '$v'" ;;
           esac
+          # RemainAfterExit=yes: active/success is the finished state (the
+          # wait happened above, before the name was read).
+          [ "$_svc" = "active/success" ] \
+            && record pass "$mode: hostname settle unit succeeded" \
+            || record fail "$mode: hostname settle unit succeeded" "state '$_svc'"
+          _mk=$(guest 'cat /run/kali-live-headless/hostname-auto 2>/dev/null')
+          [ "$_mk" = "$v" ] \
+            && record pass "$mode: hostname-auto marker matches the applied name" \
+            || record fail "$mode: hostname-auto marker" "marker '$_mk' != hostname '$v'"
         fi
       else
         [ "$v" = "$HOSTNAME_EXPECTED" ] && record pass "$mode: hostname=$HOSTNAME_EXPECTED" || record fail "$mode: hostname (want $HOSTNAME_EXPECTED, got '$v')"
