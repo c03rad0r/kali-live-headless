@@ -133,3 +133,58 @@ is the one already announcing, or mint a stick CI key of your own.
 | 32G with C: store | real store | `12:24:40` | 2–4 | everything, warm boots |
 | 16G diskless | `ram-store 4` | `4:8:20` | 1 | fast lanes only |
 | 16G with store (owner actions pending) | real store | `6:10:30` | 1–2 | fast + serial SDK |
+
+## Rehearsal evidence (2026-10-26, x280 nested-KVM lab)
+
+The full stack was rehearsed by booting iso-build31 under QEMU (nested KVM
+enabled) and driving the kit against it. Proven, with logs:
+
+| layer | verdict | evidence |
+|---|---|---|
+| private-CI loop, end to end | **PROVEN** (signed 9842s on relay.ngit.dev) | spike doc: 3 commits, 2 coordinators, warm run 6.1 s |
+| coordinator on a live boot (docker in RAM overlay + data-root on disk) | **PROVEN** | spike leg 2: run green 6.1 s, identity npub14s9uenk… |
+| nested KVM on the live image | **PROVEN** | /dev/kvm present in the live guest, kvm-firewall active |
+| repo deployer provisions the CI VM inside the live guest | **PROVEN** | deploy green on core checks (13/19 postflight PASS; fails were hub-absence artifacts) |
+| docker-ce + coordinator running INSIDE the CI VM | **PROVEN** | identity npub1kx95g5… logged, watching the demo repo |
+| store persistence across a live reboot | **PROVEN** (by accident) | live reboot mid-rehearsal: ci.* artifacts intact, `--restore` path exercised |
+| act job completing INSIDE the nested VM | **not proven** | blocked by the rehearsal host (see below), not by design |
+
+The one open row: the act job inside the nested VM never completed **on the
+x280 lab**, which has 15 GB RAM total — the live guest (4.2G) + CI VM (2G) +
+a 546 MB image streaming through guest RAM hit the wall repeatedly. The
+target machines have 4–8× that headroom (the runbook's budget table is sized
+for them). Everything the missing row needs is proven in the layers below it
+(act ran on the live boot directly; the coordinator ran inside the VM).
+
+### Lessons baked into the kit by the rehearsal
+
+1. **Never place rehearsal/host artifacts on tmpfs** — a 20G store qcow2 on
+   a 7.8G tmpfs produced EIO storms → ext4 journal damage → silently lost
+   VM files. Real disk for anything that grows; `mkfs` after any EIO.
+2. **ghcr.io pulls stall behind double-NAT** (manifest OK, layers at 0 B/s
+   for 15+ min) while docker.io pulls fine — so the bundle now carries the
+   job image and the payload loads it locally; a first-boot registry pull is
+   a fallback, not the path.
+3. **A wedged pull holds the layer lock**: `docker load` of the same image
+   hangs behind it. `systemctl restart docker` clears it (coordinator
+   auto-resumes via restart policy).
+4. **The deploy-time GUEST_IP goes stale** (fresh cloud-init re-leases;
+   observed .144 → .104). The kit resolves the live lease via
+   `virsh domifaddr` and only falls back to the state file.
+5. **vm-deploy's rapid fresh SSH connections trip the image's latching
+   rate limiter** (AGENTS #15): give the stick a ControlMaster alias in
+   ~/.ssh/config before driving the kit against it.
+6. **The store marker needs its full key set** (`KLH_VMSTORE_POOL` etc.) or
+   `kali-live-vm-create` dies under `set -u` — on real sticks the
+   vmstore-mount service writes it; the marker shim is rehearsal-only.
+7. **`vm-deploy.sh` died at the FIPS tail whenever `--fips` was omitted**
+   (unset array + `${#arr[@]:-0}` = bad substitution) — fixed on this lane.
+
+## First boot on a real machine — what to expect
+
+The whole flow is: `bundle` (laptop, once) → on the stick: `ram-store` (if
+diskless) → `deploy` → `install` → `verify`. First `install` takes ~4–8 min
+(docker-ce install + image loads). Then push to the watched mirror (or
+`scripts/ngit-ci-trigger.sh`) and read the 9842. Expect the coordinator's
+identity line in `verify` output; persist it via `NGIT_CI_COORDINATOR_NSEC`
+in the env file for cross-boot identity continuity.

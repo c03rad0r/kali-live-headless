@@ -68,11 +68,16 @@ sudo bash -e -c '
 '
 sleep 5
 
-# --- warm the job image so the first run is not a 3-minute pull -------------
-preseed="${CI_PRESEED_IMAGES:-ghcr.io/catthehacker/ubuntu:act-latest}"
-if [ "$preseed" != none ]; then
-    echo "[ci-payload] pre-pulling job image (first boot only) ..."
-    sudo docker pull -q "$preseed" >/dev/null \
+# --- job image: deterministic, from the bundle — never a first-boot pull -----
+# (measured 2026-10-26: ghcr's CDN stalls behind double-NAT on first contact;
+#  docker.io works but is slow; a bundle-carried image is instant and offline)
+if [ -r act-job-image.tar.gz ]; then
+    echo "[ci-payload] loading job image from the bundle ..."
+    sudo docker load < act-job-image.tar.gz >/dev/null \
+        || echo "[ci-payload] WARNING: bundle image load failed"
+elif [ "${CI_PRESEED_IMAGES:-none}" != none ]; then
+    echo "[ci-payload] pre-pulling job image (no bundle copy; first job may pay a slow pull) ..."
+    sudo docker pull -q "${CI_PRESEED_IMAGES}" >/dev/null \
         || echo "[ci-payload] WARNING: pre-pull failed; first job pays the pull cost"
 fi
 

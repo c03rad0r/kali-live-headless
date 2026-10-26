@@ -52,6 +52,16 @@ bundle() {
         || die "coordinator image not found at $COORD_IMAGE (build it per docs/private-ci-ngit-spike-2026-10-26.md, or set KLH_CI_COORD_IMAGE)"
     cp -f "$COORD_IMAGE" "$dir/ngit-ci-image.tar.gz"
     cp -f "$HERE/ci-vm-payload.sh" "$HERE/ci-vm-compose.yml" "$HERE/ci-vm.env.example" "$dir/"
+    # job image: optional bundle copy — strongly recommended (the payload's
+    # comment explains why). KLH_CI_JOB_IMAGE=/path/to.tar.gz or 'skip'.
+    if [ "${KLH_CI_JOB_IMAGE:-}" != skip ]; then
+        job_img=${KLH_CI_JOB_IMAGE:-/var/tmp/klh-ci-rehearsal/catthehacker-act.tar.gz}
+        if [ -r "$job_img" ]; then
+            cp -f "$job_img" "$dir/act-job-image.tar.gz"
+        else
+            echo "  NOTE: no bundle job image at $job_img — first boot will pull it (slow paths measured; see runbook). Set KLH_CI_JOB_IMAGE=skip to silence."
+        fi
+    fi
     local img
     img="$dir/$(basename "$BASE_IMAGE_URL")"
     if [ ! -s "$img" ]; then
@@ -117,22 +127,28 @@ install_ci() {
         state=/run/kali-live-headless/vm-$name.env
         [ -r \"\$state\" ] || { echo 'no state file \$state — deploy first' >&2; exit 1; }
         . \"\$state\"
-        echo \"VM at \${GUEST_IP:-unknown}\"
+        # the DHCP lease is truth, not the deploy-time snapshot
+        ip=\$(sudo -n virsh -c qemu:///system domifaddr $name --source agent 2>/dev/null \
+              | awk '/ipv4/{split(\$4,a,\"/\"); print a[1]; exit}')
+        ip=\${ip:-\$(sudo -n virsh -c qemu:///system domifaddr $name 2>/dev/null \
+              | awk '/ipv4/{split(\$4,a,\"/\"); print a[1]; exit}')}
+        ip=\${ip:-\$ip}
+        echo \"VM at \$ip\"
         sudo -n ssh -i /var/lib/kali-live-headless/vmhost-ed25519 -o BatchMode=yes -o StrictHostKeyChecking=no \
             -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 \
-            \"\${GUEST_USER:-debian}@\$(sed -n 's/^GUEST_IP=//p' \$state)\" \
+            \"\${GUEST_USER:-debian}@\$ip\" \
             'mkdir -p /tmp/ci && chmod 700 /tmp/ci'
         sudo -n scp -q -i /var/lib/kali-live-headless/vmhost-ed25519 -o BatchMode=yes -o StrictHostKeyChecking=no \
             -o UserKnownHostsFile=/dev/null \
             $remote_dir/ngit-ci-image.tar.gz $remote_dir/ci-vm-payload.sh \
             $remote_dir/ci-vm-compose.yml $remote_dir/$(basename "$env") \
-            \"\${GUEST_USER:-debian}@\$(sed -n 's/^GUEST_IP=//p' \$state):/tmp/ci/\"
+            \"\${GUEST_USER:-debian}@\$ip:/tmp/ci/\"
         [ -f $remote_dir/ngit-ci-secrets.env ] && sudo -n scp -q -i /var/lib/kali-live-headless/vmhost-ed25519 \
             -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-            $remote_dir/ngit-ci-secrets.env \"\${GUEST_USER:-debian}@\$(sed -n 's/^GUEST_IP=//p' \$state):/tmp/ci/\"
+            $remote_dir/ngit-ci-secrets.env \"\${GUEST_USER:-debian}@\$ip:/tmp/ci/\"
         sudo -n ssh -i /var/lib/kali-live-headless/vmhost-ed25519 -o BatchMode=yes -o StrictHostKeyChecking=no \
             -o UserKnownHostsFile=/dev/null \
-            \"\${GUEST_USER:-debian}@\$(sed -n 's/^GUEST_IP=//p' \$state)\" \
+            \"\${GUEST_USER:-debian}@\$ip\" \
             'cd /tmp/ci && { [ -f ci-vm.env ] || mv $(basename "$env") ci-vm.env; } && chmod 600 ci-vm.env && bash ci-vm-payload.sh'
         rm -rf $remote_dir"
 }
@@ -143,7 +159,7 @@ verify() {
     ssh "${SSHO[@]}" "$stick" "set -e
         state=/run/kali-live-headless/vm-$name.env
         [ -r \"\$state\" ] || { echo 'no state file' >&2; exit 1; }
-        ip=\$(sed -n 's/^GUEST_IP=//p' \$state)
+        ip=\$ip
         echo '== coordinator (inside the VM):'
         sudo -n ssh -i /var/lib/kali-live-headless/vmhost-ed25519 -o BatchMode=yes -o StrictHostKeyChecking=no \
             -o UserKnownHostsFile=/dev/null \${GUEST_USER:-debian}@\$ip \
