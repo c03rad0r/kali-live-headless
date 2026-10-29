@@ -132,6 +132,22 @@ Tails publishes OpenPGP signatures rather than a standalone SHA-256 file. The
 Tails hash was recorded after verifying the download against the Tails
 signing key (`A490 D0F4 D311 A415 3E2B B7CA DBB8 02B2 58AC D84F`).
 
+## Reserving space at the end (bad-region containment)
+
+A stick with a defect near the end of the medium cannot hold Ventoy's 32 MiB
+VTOYEFI partition, which is placed at the very end. `RESERVE_MIB` keeps a gap
+there and moves every partition away from it:
+
+```bash
+make ventoy-install USB=/dev/sda CONFIRM=yes RESERVE_MIB=1024
+```
+
+The reserved area is never written or read, so the defect cannot abort the
+installer. Verify that it worked: `Ventoy2Disk.sh -l` must report
+`Secure Boot Support : YES`, which fails when the ESP write could not complete.
+
+This is containment, not repair. Record the stick as degraded.
+
 ## Loop-device test
 
 ```bash

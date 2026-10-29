@@ -7,6 +7,7 @@ ventoy_cache_dir: "{{ lookup('env', 'HOME') }}/.cache/ventoy"
 ventoy_iso_dir: "{{ ventoy_cache_dir }}/isos"
 ventoy_mount_dir: "/mnt/ventoy-build"
 
+ventoy_reserve_mib: 0      # unused space kept at the END of the disk
 ventoy_menu_mode: "1"      # 1 = tree view
 ventoy_menu_timeout: "30"
 

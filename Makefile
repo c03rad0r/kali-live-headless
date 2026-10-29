@@ -8,12 +8,14 @@ BECOME_FLAG ?= -K
 EXTRA ?=
 ALLOW_LOOP ?= false
 ALLOW_LARGE_USB ?= false
+RESERVE_MIB ?= 0
 
 AP := $(ANSIBLE_PLAYBOOK) -i $(INVENTORY) $(PLAYBOOK)
 COMMON := -e ventoy_device="$(USB)" -e ventoy_confirm="$(CONFIRM)" \
           -e ventoy_serial="$(SERIAL)" \
           -e ventoy_allow_loop="$(ALLOW_LOOP)" \
-          -e ventoy_allow_large_usb="$(ALLOW_LARGE_USB)" $(EXTRA)
+          -e ventoy_allow_large_usb="$(ALLOW_LARGE_USB)" \
+          -e ventoy_reserve_mib="$(RESERVE_MIB)" $(EXTRA)
 
 USB ?=
 CONFIRM ?=

@@ -36,7 +36,10 @@
 
 - name: Install Ventoy (GPT, Secure Boot support)
   ansible.builtin.command:
-    cmd: "./Ventoy2Disk.sh -i -g -s {{ ventoy_dev_path }}"
+    cmd: >-
+      ./Ventoy2Disk.sh -i -g -s
+      {% if (ventoy_reserve_mib | int) > 0 %}-r {{ ventoy_reserve_mib }}{% endif %}
+      {{ ventoy_dev_path }}
     chdir: "{{ ventoy_cache_dir }}/ventoy-{{ ventoy_version }}"
     stdin: "y\ny\ny\n"
   become: true
