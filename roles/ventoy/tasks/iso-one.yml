@@ -41,6 +41,17 @@
     - not ventoy_iso_ready
     - ventoy_part_ready
 
+- name: Stage the local {{ item.name }} ISO
+  ansible.builtin.copy:
+    src: "{{ item.local_path }}"
+    dest: "{{ ventoy_iso_part }}"
+    remote_src: true
+    mode: "0644"
+  when:
+    - item.local_path is defined
+    - not ventoy_iso_ready
+    - not ventoy_part_ready
+
 - name: Download {{ item.name }}
   ansible.builtin.command:
     cmd: >-
@@ -49,6 +60,7 @@
   when:
     - not ventoy_iso_ready
     - not ventoy_part_ready
+    - item.local_path is not defined
   register: ventoy_download
   changed_when: true
 

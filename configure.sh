@@ -221,9 +221,10 @@ klh_validate_password_mode "$LIVE_PASSWORD_MODE" || klh_die "password mode must 
 
 WITH_KVM=${OPT_KVM:-}
 if [ -z "$WITH_KVM" ]; then prompt_choice WITH_KVM "Bake in the KVM/libvirt stack?" "true" true false; fi
-VARIANT=${VARIANT:-minimal}
-[ -z "$TORAM_ENTRY" ] && TORAM_ENTRY=true
+VARIANT=${OPT_VARIANT:-minimal}
+TORAM_ENTRY=${OPT_TORAM:-true}
 klh_validate_bool "$WITH_KVM" || klh_die "--with-kvm must be true or false"
+klh_validate_bool "$TORAM_ENTRY" || klh_die "--toram-entry must be true or false"
 
 # WireGuard access channel (non-interactive only: flags or environment; all
 # staged values are NON-secret — the stick generates its own private key on
@@ -232,8 +233,6 @@ WG_ENDPOINT=${OPT_WG_ENDPOINT:-}
 WG_PEER_PUBKEY=${OPT_WG_PEER:-}
 WG_TUNNET=${OPT_WG_NET:-}
 WG_PORT=${OPT_WG_PORT:-}
-VARIANT=${OPT_VARIANT:-}
-TORAM_ENTRY=${OPT_TORAM:-}
 VMSTORE_BITLOCKER=${OPT_BITLOCKER:-}
 WG_HUB_ADDR=${OPT_WG_HUB:-}
 WG_ENROLL_HUB_NPUB=${OPT_WG_ENROLL_HUB:-}

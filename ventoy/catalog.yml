@@ -6,6 +6,11 @@
 # on a mismatch. Run `make ventoy-isos` to populate the cache.
 
 ventoy_version: "1.1.18"
+
+# Headless rescue: boot this image when the menu times out.
+# Filled in once the KLH ISO exists (see docs/VENTOY.md).
+ventoy_default_image: ""
+ventoy_menu_timeout: "5"
 ventoy_release_base: "https://github.com/ventoy/Ventoy/releases/download/v{{ ventoy_version }}"
 ventoy_archive_name: "ventoy-{{ ventoy_version }}-linux.tar.gz"
 ventoy_archive_sha256: "d86ff9de63d94c8b8f1f6b14d23c55af4b88e8207bf2893890892a6a97b1ad54"
@@ -21,7 +26,7 @@ ventoy_isos:
     note: "Unbundled installer; needs internet during install."
 
   - name: debian
-    enabled: true
+    enabled: false
     filename: debian-13.7.0-amd64-netinst.iso
     url: "https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/debian-13.7.0-amd64-netinst.iso"
     sha256: "a7ef94ac2fb9a7fec454552abd629b7cc9d5155c886165a45649f5ce6167e355"
@@ -30,7 +35,7 @@ ventoy_isos:
     note: "Netinst; needs network for packages."
 
   - name: tails
-    enabled: true
+    enabled: false
     filename: tails-amd64-7.15.1.iso
     url: "https://download.tails.net/tails/stable/tails-amd64-7.15.1/tails-amd64-7.15.1.iso"
     sha256: "f0e68387ebe327808c0a037886f804f7b2268ae8c66a677e3a6c6241d764e3c7"
@@ -39,7 +44,7 @@ ventoy_isos:
     note: "Ventoy boots the ISO, but Tails Persistent Storage needs a Tails-created partition. Hash pinned after OpenPGP verification."
 
   - name: ubuntu
-    enabled: true
+    enabled: false
     filename: ubuntu-25.10-desktop-amd64.iso
     url: "https://mirrors.kernel.org/ubuntu-releases/25.10/ubuntu-25.10-desktop-amd64.iso"
     sha256: "32e30d72ae4798c633323a2684d94a11582bb03a6ab38d2b0d5ae5eabc5e577b"
@@ -48,7 +53,7 @@ ventoy_isos:
     note: "Installer only; no persistence configured."
 
   - name: kali
-    enabled: true
+    enabled: false
     filename: kali-linux-2026.3-live-amd64.iso
     url: "https://cdimage.kali.org/current/kali-linux-2026.3-live-amd64.iso"
     sha256: "93a40ef53936719119824c3f0f0742ab50a045e2e082b95e382cf9f2f1f8acbb"
@@ -57,7 +62,7 @@ ventoy_isos:
     note: "Stock Kali Live; the custom headless ISO can be added later."
 
   - name: omarchy
-    enabled: true
+    enabled: false
     filename: omarchy-4.0.6.iso
     url: "https://iso.omarchy.org/omarchy-4.0.6.iso"
     sha256: "b542db5fecc37395d9af6654a8146ebed225f275ae4d5a6fcf432e40afe7bb88"
