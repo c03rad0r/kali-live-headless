@@ -46,6 +46,27 @@ make ventoy-lint
 If `SERIAL=` is omitted on a destructive target, the role pauses and asks you
 to type the disk serial. Supplying `SERIAL=...` is for scripted runs.
 
+## Known limitation: sudo-rs
+
+On hosts whose `sudo` is **sudo-rs** (Ubuntu 25.10+/26.04), Ansible's `become`
+plugin does not recognise the prompt and the first privileged task fails with:
+
+```
+Timed out waiting for become success or become password prompt
+```
+
+This breaks `ventoy-install`, `ventoy-sync` and `ventoy-verify` *on the
+control host*; the roles themselves are fine. Until the role learns a
+sudo-rs-compatible invocation, run the pinned installer with plain sudo:
+
+```bash
+# download + verify + install, no Ansible
+make -C ~/hermes-migration rescue-usb-install-ventoy USB=/dev/sda CONFIRM=yes
+```
+
+That target lives in the backup programme repository and performs the same
+checksum-pinned Ventoy install.
+
 ## Safety model
 
 The role refuses to continue unless all of these hold:
