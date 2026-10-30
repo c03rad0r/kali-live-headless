@@ -1,7 +1,8 @@
 {
   "control": [
     { "VTOY_DEFAULT_MENU_MODE": "{{ ventoy_menu_mode }}" },
-    { "VTOY_MENU_TIMEOUT": "{{ ventoy_menu_timeout }}" }{% if ventoy_default_image | default('') | length > 0 %},
+    { "VTOY_MENU_TIMEOUT": "{{ ventoy_menu_timeout }}" },
+    { "VTOY_SECONDARY_BOOT_MENU": "{{ ventoy_secondary_boot_menu }}" }{% if ventoy_default_image | default('') | length > 0 %},
     { "VTOY_DEFAULT_IMAGE": "{{ ventoy_default_image }}" }{% endif %}
   ],
   "menu_alias": [

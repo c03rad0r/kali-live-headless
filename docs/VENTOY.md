@@ -17,6 +17,12 @@ The stick boots:
 
 No persistence images are created.
 
+The menu boots unattended: the main menu times out after 5 s, and
+`VTOY_SECONDARY_BOOT_MENU` is `0`, so Ventoy does **not** stop at its
+"Boot in normal mode" secondary menu. That second menu is the usual reason a
+headless machine waits forever even though the BIOS and the main menu both
+time out.
+
 ## Requirements
 
 - Linux with `ansible`, `python3`, `curl`, `rsync`, `mount.exfat`
