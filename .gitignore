@@ -21,3 +21,4 @@ output/
 test/scratch/
 .klh-test-*
 __pycache__/
+var/
